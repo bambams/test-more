@@ -15,9 +15,27 @@ use Test::Stream::Exporter;
 
 our %STACKS;
 
-for my $stage (qw/before after around/) {
+Test::Workflow::Scheduler->define(
+    tests => {},
+
+    case => { affix => 'each', alter => 'tests' },
+
+    before_all => { affix => 'all', alter => 'tests' },
+    after_all  => { affix => 'all', alter => 'tests' },
+    around_all => { affix => 'all', alter => 'tests' },
+
+    before_each => { affix => 'each', alter => 'tests', outside => ['case'] },
+    after_each  => { affix => 'each', alter => 'tests', outside => ['case'] },
+    around_each => { affix => 'each', alter => 'tests', outside => ['case'] },
+
+    before_case => { affix => 'each', alter => 'case' },
+    after_case  => { affix => 'each', alter => 'case' },
+    around_case => { affix => 'each', alter => 'case' },
+);
+
+for my $prefix (qw/before after around/) {
     for my $component (qw/case each all/) {
-        _generate_adder("${stage}_${component}");
+        _generate_adder("${prefix}_${component}");
     }
 }
 
@@ -51,9 +69,9 @@ sub before_import {
     my @new_args;
     my %run_params;
 
-    while(my $arg = shift @args) {
-        if ($arg =~ m/^-(.+)$/ {
-            $run_params{$arg} = shift @args;
+    while(my $arg = shift @$args) {
+        if ($arg =~ m/^-(.+)$/) {
+            $run_params{$arg} = shift @$args;
             next;
         }
         push @new_args => $arg;
@@ -92,7 +110,7 @@ sub _parse_params {
     );
 
     $STACKS{$pkg} ||= [Test::Workflow::Group->new_from_pairs(
-        name   => 'root',
+        name   => "$pkg (root)",
         caller => [$pkg, $file, 0, undef],
         root   => $pkg
     )];
@@ -101,14 +119,14 @@ sub _parse_params {
 }
 
 sub _generate_adder {
-    my $subname = shift;
-    my $addname = "add_$subname";
+    my ($type) = @_;
+    my $subname = "add_$type";
 
     # Use an eval to ensure the sub is named instead of __ANON__ in any traces.
     eval <<"    EOT" || die $@;
         sub $subname {
             my (\$name, \$block, \$params, \$caller) = _parse_params('$subname', \\\@_);
-            \$STACKS{\$caller->[0]}->[-1]->$addname(name => \$name, block => \$block);
+            \$STACKS{\$caller->[0]}->[-1]->add(type => '$type', item => \$block);
         }
 
         1;
@@ -120,6 +138,7 @@ sub workflow {
     my $pkg = $caller->[0];
 
     my $workflow = Test::Workflow::Group->new_from_pairs(
+        type   => 'group',
         params => $params,
         name   => $name,
         caller => $caller,
@@ -131,7 +150,7 @@ sub workflow {
     pop @{$STACKS{$pkg}};
 
     if ($ok) {
-        $STACKS{$pkg}->[-1]->add_group($workflow);
+        $STACKS{$pkg}->[-1]->add(type => 'group', item => $workflow);
     }
     else {
         die $err;
@@ -144,12 +163,10 @@ sub run_workflow {
     my %params = @_;
     my $caller = caller;
 
-    $workflow = delete($params{workflow}) || $STACKS{$caller} || croak "No workflow for package '$caller', and no workflow provided.";
+    $params{workflow} ||= $STACKS{$caller} || croak "No workflow for package '$caller', and no workflow provided.";
 
-    my $scheduler = $params{scheduler} || 'Test::Workflow::Scheduler';
-    $scheduler = $scheduler_class->new(%params) unless ref $scheduler;
-
-    $scheduler->run($workflow);
+    my $scheduler = delete $params{scheduler} || 'Test::Workflow::Scheduler';
+    $scheduler->run(%params);
 }
 
 sub root_workflow {

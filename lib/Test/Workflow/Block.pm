@@ -6,7 +6,7 @@ use Scalar::Util qw/blessed reftype/;
 use Test::Stream::Carp qw/confess/;
 
 use Test::Stream::ArrayBase(
-    accessors => [qw/name coderef params caller deduced _start_line _end_line/],
+    accessors => [qw/name coderef params caller deduced _start_line _end_line /],
 );
 
 our %SUB_MAPS;
@@ -44,9 +44,10 @@ sub init {
     $self->[DEDUCED] = [$pkg, $file, $line, $subname];
 }
 
-sub package    { $_[0]->[DEDUCED]->[PACKAGE] }
-sub file       { $_[0]->[DEDUCED]->[FILE]    }
-sub subname    { $_[0]->[DEDUCED]->[SUBNAME] }
+sub run     { $_[0]->coderef->()          }
+sub package { $_[0]->[DEDUCED]->[PACKAGE] }
+sub file    { $_[0]->[DEDUCED]->[FILE]    }
+sub subname { $_[0]->[DEDUCED]->[SUBNAME] }
 
 sub detail {
     my $self = shift;
