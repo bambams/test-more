@@ -13,6 +13,8 @@ use Test::Stream::Carp qw/croak/;
 
 use Test::Stream::Exporter;
 
+use Scalar::Util qw/reftype/;
+
 our %STACKS;
 
 Test::Workflow::Scheduler->define(
@@ -64,6 +66,7 @@ default_exports qw{
 };
 
 sub before_import {
+    my $class = shift;
     my ($caller, $args) = @_;
     my @new_args;
     my %run_params;
@@ -79,9 +82,13 @@ sub before_import {
 
     return if $run_params{no_auto};
 
+    my $ran = 0;
     Test::Stream->shared->follow_up(
         sub {
-            run_workflow(%run_params, workflow => $STACKS{$caller});
+            return if $ran++;
+            my ($wf) = @{$STACKS{$caller} || []};
+            return unless $wf;
+            run_workflow(%run_params, workflow => $wf);
         }
     );
 }
@@ -89,9 +96,9 @@ sub before_import {
 sub _parse_params {
     my ($tool, $args) = @_;
 
-    my $name   = shift;
-    my $code   = pop;
-    my %params = @_;
+    my $name   = shift @$args;
+    my $code   = pop @$args;
+    my %params = @$args;
 
     my ($pkg, $file, $line, $sub) = caller(1);
 
@@ -136,7 +143,6 @@ sub workflow {
     my $pkg = $caller->[0];
 
     my $workflow = Test::Workflow::Group->new_from_pairs(
-        type   => 'group',
         params => $params,
         name   => $name,
         caller => $caller,
@@ -144,7 +150,7 @@ sub workflow {
     );
 
     push @{$STACKS{$pkg}} => $workflow;
-    my ($ok, $err) = &try($block->coderef);
+    my ($ok, $err) = try { $block->run };
     pop @{$STACKS{$pkg}};
 
     if ($ok) {
@@ -161,7 +167,14 @@ sub run_workflow {
     my %params = @_;
     my $caller = caller;
 
-    $params{workflow} ||= $STACKS{$caller} || croak "No workflow for package '$caller', and no workflow provided.";
+    unless ($params{workflow}) {
+        my ($wf) = @{$STACKS{$caller} || []};
+
+        croak "No workflow for package '$caller', and no workflow provided."
+            unless $wf;
+
+        $params{workflow} = $wf;
+    }
 
     my $scheduler = delete $params{scheduler} || 'Test::Workflow::Scheduler';
     $scheduler->run(%params);

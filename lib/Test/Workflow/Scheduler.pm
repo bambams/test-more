@@ -74,6 +74,10 @@ sub state {
     return $self->{state}->[-1];
 }
 
+sub push_state { push @{$_[0]->{state}} => {} }
+
+sub pop_state { pop @{$_[0]->{state}} }
+
 sub run {
     my $proto = shift;
     my %params = @_;
@@ -82,44 +86,38 @@ sub run {
 
     my $workflow = delete $params{workflow} || confess "No workflow";
 
-    my @units = map { _compile($_, {}) } $workflow, @{$workflow->includes};
+    my @units = map { $self->_compile($_, {}) } $workflow, @{$workflow->includes};
 
-    $self->run_unit($_) for @units;
+    $self->run_unit($_, 0) for @units;
 }
 
 sub run_unit {
     my $self = shift;
-    my ($unit) = @_;
+    my ($unit, $nested, @prefix_args) = @_;
 
-    my $runner;
-    $runner = sub {
-        my $unit = shift;
-        $unit->run(
-            args    => $self->args,
-            recurse => $runner,
-        );
-    };
+    confess "Invalid unit ($unit)!"
+        unless $unit && blessed $unit && $unit->isa('Test::Workflow::Unit');
 
-    $runner->($unit);
+    $unit->run(@prefix_args, @{$self->args});
 }
 
 sub _compile {
+    my $self = shift;
     my ($group, $inherit) = @_;
     my $comps = $group->components;
 
-    my $all = { map { $_ => [ @{$inherit->{$_}}, @{$comps->{$_}} ] } qw/modifier multiplier/ };
-
-    my @units = _compile($_, $all) for @{$group->subgroups};
+    my $all = { map { $_ => [ @{$inherit->{$_} || []}, @{$comps->{$_} || []} ] } qw/modifier multiplier/ };
 
     my $actions = {};
-    my @action_order = [];
+    my @action_order;
     for my $action (@{$comps->{action}}) {
         my ($type, $it) = @$action;
 
         my $unit = Test::Workflow::Unit->new_from_pairs(
-            stateful => 1,
-            type     => $type,
-            core     => $it,
+            stateful  => 1,
+            type      => $type,
+            core      => $it,
+            scheduler => $self,
         );
 
         push @{$actions->{$type}} => $unit;
@@ -133,10 +131,11 @@ sub _compile {
         my $spec = $COMPONENTS{$type};
 
         my $unit = Test::Workflow::Unit->new_from_pairs(
-            stateful => 0,
-            type     => $type,
-            core     => $it,
-            affix    => $spec->{affix},
+            stateful  => 0,
+            type      => $type,
+            core      => $it,
+            scheduler => $self,
+            affix     => $spec->{affix},
         );
 
         push @{$multipliers->{$type}} => $unit;
@@ -156,7 +155,8 @@ sub _compile {
             $unit->alter($it, $spec->{affix});
         }
     }
-    
+
+    my @units;
     # apply multipliers to actions
     if (@mul_order) {
         for my $mul (@mul_order) {
@@ -166,14 +166,19 @@ sub _compile {
         }
     }
     else {
-        push @units => @action_order;
+        @units = @action_order;
     }
-    
-    return @units unless @{$comps->{init}};
+
+    return @units unless @{$group->subgroups};
+
+    push @units => map { $self->_compile($_, $all) } @{$group->subgroups};
+
+    return @units unless $comps->{init} && @{$comps->{init}};
 
     my $unit = Test::Workflow::Unit->new_from_pairs(
         stateful => 1,
         core     => \@units,
+        scheduler => $self,
     );
 
     $unit->alter($_) for @{$comps->{init}};

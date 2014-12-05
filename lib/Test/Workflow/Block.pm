@@ -66,6 +66,14 @@ sub run {
     $self->coderef->(@_);
 }
 
+sub test_run {
+    my $self = shift;
+
+    warn "TODO: Generate test results";
+
+    $self->run(@_);
+}
+
 sub detail {
     my $self = shift;
 
