@@ -16,21 +16,20 @@ use Test::Stream::Exporter;
 our %STACKS;
 
 Test::Workflow::Scheduler->define(
-    tests => {},
+    tests => {type => 'action',     state_layer => 1},
+    case  => {type => 'multiplier', affix       => -1},
 
-    case => { affix => 'each', alter => 'tests' },
+    before_all => {type => 'init', affix => -1},
+    around_all => {type => 'init', affix => 0},
+    after_all  => {type => 'init', affix => 1},
 
-    before_all => { affix => 'all', alter => 'tests' },
-    after_all  => { affix => 'all', alter => 'tests' },
-    around_all => { affix => 'all', alter => 'tests' },
+    before_each => {type => 'modifier', affix => -1, alter => 'tests'},
+    around_each => {type => 'modifier', affix => 0,  alter => 'tests'},
+    after_each  => {type => 'modifier', affix => 1,  alter => 'tests'},
 
-    before_each => { affix => 'each', alter => 'tests', outside => ['case'] },
-    after_each  => { affix => 'each', alter => 'tests', outside => ['case'] },
-    around_each => { affix => 'each', alter => 'tests', outside => ['case'] },
-
-    before_case => { affix => 'each', alter => 'case' },
-    after_case  => { affix => 'each', alter => 'case' },
-    around_case => { affix => 'each', alter => 'case' },
+    before_case => {type => 'modifier', affix => -1, alter => 'case'},
+    around_case => {type => 'modifier', affix => 0,  alter => 'case'},
+    after_case  => {type => 'modifier', affix => 1,  alter => 'case'},
 );
 
 for my $prefix (qw/before after around/) {
@@ -49,7 +48,7 @@ _generate_adder('tests');
     *describe = \&workflow;
 }
 
-default_export qw{
+default_exports qw{
     before_each after_each around_each
     before_all  after_all  around_all
     before_case after_case around_case
@@ -120,12 +119,11 @@ sub _parse_params {
 
 sub _generate_adder {
     my ($type) = @_;
-    my $subname = "add_$type";
 
     # Use an eval to ensure the sub is named instead of __ANON__ in any traces.
     eval <<"    EOT" || die $@;
-        sub $subname {
-            my (\$name, \$block, \$params, \$caller) = _parse_params('$subname', \\\@_);
+        sub $type {
+            my (\$name, \$block, \$params, \$caller) = _parse_params('$type', \\\@_);
             \$STACKS{\$caller->[0]}->[-1]->add(type => '$type', item => \$block);
         }
 
@@ -150,7 +148,7 @@ sub workflow {
     pop @{$STACKS{$pkg}};
 
     if ($ok) {
-        $STACKS{$pkg}->[-1]->add(type => 'group', item => $workflow);
+        $STACKS{$pkg}->[-1]->add_group($workflow);
     }
     else {
         die $err;

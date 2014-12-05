@@ -44,10 +44,27 @@ sub init {
     $self->[DEDUCED] = [$pkg, $file, $line, $subname];
 }
 
-sub run     { $_[0]->coderef->()          }
+sub merge_params {
+    my $self = shift;
+    my ($new) = @_;
+    my $old = $self->[PARAMS];
+
+    # Use existing ref, merge in new ones, but old ones are kept since the
+    # block can override the workflow.
+    %$old = ( %$new, %$old );
+}
+
 sub package { $_[0]->[DEDUCED]->[PACKAGE] }
 sub file    { $_[0]->[DEDUCED]->[FILE]    }
 sub subname { $_[0]->[DEDUCED]->[SUBNAME] }
+
+sub run {
+    my $self = shift;
+
+    warn "TODO: handle todo's, skips, and similar things";
+
+    $self->coderef->(@_);
+}
 
 sub detail {
     my $self = shift;
