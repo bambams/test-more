@@ -6,55 +6,8 @@ use Scalar::Util qw/blessed reftype/;
 use Test::Stream::Util qw/try/;
 use Test::Stream::Carp qw/confess croak/;
 
+use Test::Workflow qw/spec/;
 use Test::Workflow::Unit;
-
-my %COMPONENTS;
-my %LOOKUP;
-
-sub spec {
-    my $field = pop;
-    my $name  = pop;
-    return $COMPONENTS{$name}->{$field};
-}
-
-sub define {
-    my $class = shift;
-
-    my $caller = caller;
-
-    while (my $name = shift) {
-        my $spec = shift;
-        confess "$name was already defined by $COMPONENTS{$name}->{defined}"
-            if $COMPONENTS{$name};
-
-        $spec = { %$spec, defined => $caller, name => $name };
-
-        $COMPONENTS{$name} = $spec;
-    }
-
-    for my $spec (values %COMPONENTS) {
-        $spec->{type} = "" unless defined $spec->{type};
-        croak "Invalid type ($spec->{type}) in '$spec->{name}'"             if $spec->{type} !~ m/^(modifier|action|init|multiplier)$/;
-        croak "Modifiers must have a value for 'alter' ($spec->{name})"     if $spec->{type} eq 'modifier' && !$spec->{alter};
-        croak "Only modifiers may have a value for 'alter' ($spec->{name})" if $spec->{alter} && $spec->{type} ne 'modifier';
-
-        for my $key (keys %$spec) {
-            my $val = $spec->{$key};
-            push @{$LOOKUP{$key}->{$val}} => $spec;
-        }
-    }
-}
-
-sub sort_affix($$) {
-    my ($a, $b) = @_;
-
-    return 0  if $a->{affix} == $b->{affix};
-    return -1 if $a->{affix} == 0;
-    return 1  if $b->{affix} == 0;
-    my $o = $a->{affix} <=> $b->{affix};
-    return $o if $o;
-    return $a->{name} cmp $b->{name};
-}
 
 sub new {
     my $class = shift;
@@ -128,7 +81,7 @@ sub _compile {
     my @mul_order;
     for my $mul (@{$all->{multiplier}}) {
         my ($type, $it) = @$mul;
-        my $spec = $COMPONENTS{$type};
+        my $spec = spec($type);
 
         my $unit = Test::Workflow::Unit->new_from_pairs(
             stateful  => 0,
@@ -147,7 +100,7 @@ sub _compile {
     # Apply modifiers
     for my $mod (@{$all->{modifier}}) {
         my ($type, $it) = @$mod;
-        my $spec = $COMPONENTS{$type};
+        my $spec = spec($type);
 
         my $alter = $spec->{alter};
         next unless $to_modify->{$alter};
@@ -169,9 +122,9 @@ sub _compile {
         @units = @action_order;
     }
 
-    return @units unless @{$group->subgroups};
-
     push @units => map { $self->_compile($_, $all) } @{$group->subgroups};
+
+    
 
     return @units unless $comps->{init} && @{$comps->{init}};
 

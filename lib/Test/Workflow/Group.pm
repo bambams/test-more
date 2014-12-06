@@ -25,7 +25,7 @@ sub add {
     my $type = $params{type} || confess "the 'type' field is mandatory";
     my $item = $params{item} || confess "the 'item' field is mandatory";
 
-    my $slot = Test::Workflow::Scheduler->spec($type, 'type');
+    my $slot = Test::Workflow::spec($type)->{'type'};
 
     $item->merge_params($self->params) if $item->can('merge_params');
     push @{$self->[COMPONENTS]->{$slot}} => [$type, $item];
