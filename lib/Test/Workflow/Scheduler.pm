@@ -6,7 +6,6 @@ use Scalar::Util qw/blessed reftype/;
 use Test::Stream::Util qw/try/;
 use Test::Stream::Carp qw/confess croak/;
 
-use Test::Workflow qw/spec/;
 use Test::Workflow::Unit;
 
 sub new {
@@ -28,8 +27,7 @@ sub state {
 }
 
 sub push_state { push @{$_[0]->{state}} => {} }
-
-sub pop_state { pop @{$_[0]->{state}} }
+sub pop_state  { pop  @{$_[0]->{state}}       }
 
 sub run_unit {
     my $self = shift;

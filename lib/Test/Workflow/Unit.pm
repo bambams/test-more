@@ -5,9 +5,10 @@ use warnings;
 use Scalar::Util qw/blessed/;
 use Test::Stream::Carp qw/confess/;
 use Test::Stream::Util qw/try/;
+use Test::Stream::Subtest qw/subtest/;
 
 use Test::Stream::ArrayBase(
-    accessors => [qw/stateful type core before after affix scheduler/],
+    accessors => [qw/stateful comp core before after affix scheduler is_test/],
 );
 
 sub init {
@@ -34,6 +35,9 @@ sub multiply {
         # If it is an unblessed array make a shallow copy, otherwise return as-is
         $ref eq 'ARRAY' ? [@{$_}] : $_;
     } @$self);
+
+    $clone->[IS_TEST] = $unit->[IS_TEST] . " x " . $clone->[IS_TEST]
+        if $clone->[IS_TEST] && $unit->[IS_TEST];
 
     # -1 is before only, 0 is both, 1 is after only
     unshift @{$clone->[BEFORE]} => [$unit, $unit->[AFFIX]] unless $unit->[AFFIX] > 0;
@@ -67,13 +71,22 @@ sub run {
     $self->[SCHEDULER]->push_state if $self->[STATEFUL];
 
     my ($ok, $err) = try {
-        $self->_run(
-            args   => \@args,
-            before => \@before,
-            after  => \@after,
-            end_at => undef,
-            inner  => $inner,
-        );
+        my $code = sub {
+            $self->_run(
+                args   => \@args,
+                before => \@before,
+                after  => \@after,
+                end_at => undef,
+                inner  => $inner,
+            );
+        };
+
+        if ($self->is_test) {
+            subtest($self->is_test, $code);
+        }
+        else {
+            $code->();
+        }
     };
 
     $self->[SCHEDULER]->pop_state if $self->[STATEFUL];

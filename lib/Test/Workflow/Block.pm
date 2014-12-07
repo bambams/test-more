@@ -3,10 +3,11 @@ use strict;
 use warnings;
 
 use Scalar::Util qw/blessed reftype/;
-use Test::Stream::Carp qw/confess/;
+use Test::Stream::Carp qw/confess carp/;
+use Test::Stream::Util qw/try/;
 
 use Test::Stream::ArrayBase(
-    accessors => [qw/name coderef params caller deduced _start_line _end_line /],
+    accessors => [qw/name coderef params caller deduced _start_line _end_line/],
 );
 
 our %SUB_MAPS;
@@ -18,9 +19,6 @@ sub SUBNAME() { 3 };
 
 sub init {
     my $self = shift;
-
-    confess "name is a mandatory field for " . blessed($self) . " instances"
-        unless $self->[NAME];
 
     confess "coderef is a mandatory field for " . blessed($self) . " instances"
         unless $self->[CODEREF];
@@ -41,7 +39,19 @@ sub init {
 
     $SUB_MAPS{$file}->{$line} = $self->[NAME];
 
-    $self->[DEDUCED] = [$pkg, $file, $line, $subname];
+    $self->[DEDUCED]  = [$pkg, $file, $line, $subname];
+    $self->[NAME]   ||= $subname;
+    $self->[PARAMS] ||= {};
+
+    if (my $todo = $self->params->{todo}) {
+        my $old = $self->[CODEREF];
+        $self->[CODEREF] = sub {
+            Test::Stream::Context->push_todo($todo);
+            my ($ok, $err) = &try($old);
+            Test::Stream::Context->pop_todo();
+            die $err unless $ok;
+        };
+    }
 }
 
 sub merge_params {
@@ -60,18 +70,10 @@ sub subname { $_[0]->[DEDUCED]->[SUBNAME] }
 
 sub run {
     my $self = shift;
+    my @args = @_;
 
-    warn "TODO: handle todo's, skips, and similar things";
-
-    $self->coderef->(@_);
-}
-
-sub test_run {
-    my $self = shift;
-
-    warn "TODO: Generate test results";
-
-    $self->run(@_);
+    warn "TODO: handle skips";
+    $self->[CODEREF]->(@args);
 }
 
 sub detail {
@@ -117,7 +119,7 @@ sub start_line {
         $self->[_START_LINE] = $start - 1;
     }
 
-    return $self->[_START_LINE];;
+    return $self->[_START_LINE];
 }
 
 sub end_line {

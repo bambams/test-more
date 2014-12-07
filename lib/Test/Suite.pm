@@ -12,19 +12,19 @@ use Test::Workflow qw{
 use Test::Stream::Exporter;
 
 define_components(
-    case => {type => 'multiplier', affix => -1},
+    case => {type => 'multiplier', affix => -1, require_name => 1, require_code => 1},
 
-    before_all => {type => 'init', affix => -1},
-    around_all => {type => 'init', affix => 0 },
-    after_all  => {type => 'init', affix => 1 },
+    before_all => {type => 'init', affix => -1, require_code => 1},
+    around_all => {type => 'init', affix => 0 , require_code => 1},
+    after_all  => {type => 'init', affix => 1 , require_code => 1},
 
-    before_each => {type => 'modifier', affix => -1, alter => 'tests'},
-    around_each => {type => 'modifier', affix => 0,  alter => 'tests'},
-    after_each  => {type => 'modifier', affix => 1,  alter => 'tests'},
+    before_each => {type => 'modifier', affix => -1, require_code => 1, alter => 'tests'},
+    around_each => {type => 'modifier', affix => 0,  require_code => 1, alter => 'tests'},
+    after_each  => {type => 'modifier', affix => 1,  require_code => 1, alter => 'tests'},
 
-    before_case => {type => 'modifier', affix => -1, alter => 'case'},
-    around_case => {type => 'modifier', affix => 0,  alter => 'case'},
-    after_case  => {type => 'modifier', affix => 1,  alter => 'case'},
+    before_case => {type => 'modifier', affix => -1, require_code => 1, alter => 'case'},
+    around_case => {type => 'modifier', affix => 0,  require_code => 1, alter => 'case'},
+    after_case  => {type => 'modifier', affix => 1,  require_code => 1, alter => 'case'},
 );
 
 for my $prefix (qw/before after around/) {
