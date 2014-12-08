@@ -313,7 +313,7 @@ sub $comp { my (\$block, \$caller) = \$parse->('$comp', \\\@_); \$stacks->{\$cal
         my ($scheduler, $inherit) = @_;
         my $comps = $self->components;
 
-        my $all = { map { $_ => [ @{$inherit->{$_} || []}, @{$comps->{$_} || []} ] } qw/modifier multiplier/, types() };
+        my $all = { map { $_ => [ @{$inherit->{$_} || []}, @{$comps->{$_} || []} ] } 'modifier', types() };
 
         my $actions = {};
         my @action_order;
@@ -334,7 +334,7 @@ sub $comp { my (\$block, \$caller) = \$parse->('$comp', \\\@_); \$stacks->{\$cal
 
         my $multipliers = {};
         my @mul_order;
-        for my $mul (@{$all->{multiplier}}) {
+        for my $mul (@{$comps->{multiplier}}) {
             my ($comp, $it) = @$mul;
             my $spec = comp($comp);
 
@@ -364,18 +364,29 @@ sub $comp { my (\$block, \$caller) = \$parse->('$comp', \\\@_); \$stacks->{\$cal
             }
         }
 
-        warn "Multipliers are wrong, should be: outer x inner x deeper x test";
-        my @units;
-        # apply multipliers to actions
-        if (@mul_order) {
-            for my $mul (@mul_order) {
-                for my $action (@action_order) {
-                    push @units => $action->multiply($mul);
+        # TODO clean this up and name things better, very tired when writing
+        # this....
+        push @mul_order => $inherit->{multipliers};
+        my $set = \@mul_order;
+        $all->{multipliers} = $set;
+        my $units = \@action_order;
+        while ($set && @$set) {
+            my $to_process = $units;
+            $units = [];
+            my $muls = $set;
+            $set = undef;
+
+            for my $mul (@$muls) {
+                if (blessed($mul) && $mul->isa('Test::Workflow::Unit')) {
+                    for my $action (@$to_process) {
+                        push @$units => $action->multiply($mul);
+                    }
+                }
+                else {
+                    # Recurse
+                    $set = $mul;
                 }
             }
-        }
-        else {
-            @units = @action_order;
         }
 
         for my $type (types()) {
@@ -383,17 +394,17 @@ sub $comp { my (\$block, \$caller) = \$parse->('$comp', \\\@_); \$stacks->{\$cal
             my $tspec = &type($type);
             for my $cus (@$set) {
                 my ($comp, $it) = @$cus;
-                @units = $tspec->{run}->($it, $comp, @units);
+                $units = [$tspec->{run}->($it, $comp, @$units)];
             }
         }
 
-        push @units => map { $_->_compile($scheduler, $all) } @{$self->nested};
+        push @$units => map { $_->_compile($scheduler, $all) } @{$self->nested};
 
-        return @units unless $comps->{init} && @{$comps->{init}};
+        return @$units unless $comps->{init} && @{$comps->{init}};
 
         my $unit = Test::Workflow::Unit->new_from_pairs(
-            stateful => 1,
-            core     => \@units,
+            stateful  => 1,
+            core      => $units,
             scheduler => $scheduler,
         );
 

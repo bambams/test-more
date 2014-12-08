@@ -73,6 +73,7 @@ sub run {
     my @args = @_;
 
     warn "TODO: handle skips";
+    warn "TODO: todo does not seem to be inherited from DESCRIBE";
     $self->[CODEREF]->(@args);
 }
 
