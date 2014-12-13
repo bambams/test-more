@@ -42,16 +42,6 @@ sub init {
     $self->[DEDUCED]  = [$pkg, $file, $line, $subname];
     $self->[NAME]   ||= $subname;
     $self->[PARAMS] ||= {};
-
-    if (my $todo = $self->params->{todo}) {
-        my $old = $self->[CODEREF];
-        $self->[CODEREF] = sub {
-            Test::Stream::Context->push_todo($todo);
-            my ($ok, $err) = &try($old);
-            Test::Stream::Context->pop_todo();
-            die $err unless $ok;
-        };
-    }
 }
 
 sub merge_params {
@@ -72,8 +62,6 @@ sub run {
     my $self = shift;
     my @args = @_;
 
-    warn "TODO: handle skips";
-    warn "TODO: todo does not seem to be inherited from DESCRIBE";
     $self->[CODEREF]->(@args);
 }
 

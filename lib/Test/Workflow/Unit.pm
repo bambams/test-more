@@ -81,7 +81,9 @@ sub run {
             );
         };
 
+        warn "Should handle SKIP here";
         if ($self->is_test) {
+            warn "Should handle TODO here";
             subtest($self->is_test, $code);
         }
         else {

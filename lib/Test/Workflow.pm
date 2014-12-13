@@ -235,6 +235,8 @@ sub $comp { my (\$block, \$caller) = \$parse->('$comp', \\\@_); \$stacks->{\$cal
         );
 
         push @{$STACKS{$pkg}} => $workflow;
+        warn "Handle TODO here";
+        warn "Handle SKIP here";
         my ($ok, $err) = try { $block->run };
         pop @{$STACKS{$pkg}};
 
@@ -366,14 +368,15 @@ sub $comp { my (\$block, \$caller) = \$parse->('$comp', \\\@_); \$stacks->{\$cal
 
         # TODO clean this up and name things better, very tired when writing
         # this....
-        push @mul_order => $inherit->{multipliers};
+        # OMG, I am a monster!
+        push @mul_order => $inherit->{multipliers} || ();
         my $set = \@mul_order;
-        $all->{multipliers} = $set;
+        $all->{multipliers} = $set if @$set;
         my $units = \@action_order;
         while ($set && @$set) {
             my $to_process = $units;
-            $units = [];
             my $muls = $set;
+            $units = [];
             $set = undef;
 
             for my $mul (@$muls) {
@@ -385,6 +388,7 @@ sub $comp { my (\$block, \$caller) = \$parse->('$comp', \\\@_); \$stacks->{\$cal
                 else {
                     # Recurse
                     $set = $mul;
+                    $units = $to_process unless @$units;
                 }
             }
         }
