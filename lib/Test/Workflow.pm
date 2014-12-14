@@ -53,16 +53,18 @@ use Test::Stream::Carp qw/croak confess/;
 
         require Test::Workflow::Scheduler;
 
-        my $ran = 0;
         Test::Stream->shared->follow_up(
             sub {
-                return if $ran++;
+                my $ctx = shift;
                 my ($wf) = @{$STACKS{$package} || []};
 
                 croak "No workflow for package '$package' which was set to auto-run!"
                     unless $wf;
 
-                $wf->run(%$params);
+                $ctx->clear;
+                my ($ok, $err) = try { $wf->run(%$params) };
+                $ctx->set;
+                die $err unless $ok;
             }
         );
     }
@@ -235,9 +237,11 @@ sub $comp { my (\$block, \$caller) = \$parse->('$comp', \\\@_); \$stacks->{\$cal
         );
 
         push @{$STACKS{$pkg}} => $workflow;
-        warn "Handle TODO here";
         warn "Handle SKIP here";
+        my $todo = $workflow->params->{todo};
+        Test::Stream::Context->push_todo($todo) if $todo;
         my ($ok, $err) = try { $block->run };
+        Test::Stream::Context->pop_todo() if $todo;
         pop @{$STACKS{$pkg}};
 
         if ($ok) {

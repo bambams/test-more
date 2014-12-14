@@ -8,7 +8,7 @@ use Test::Stream::Util qw/try/;
 use Test::Stream::Subtest qw/subtest/;
 
 use Test::Stream::ArrayBase(
-    accessors => [qw/stateful comp core before after affix scheduler is_test/],
+    accessors => [qw/stateful comp core before after affix scheduler is_test todo skip/],
 );
 
 sub init {
@@ -19,6 +19,9 @@ sub init {
 
     confess "scheduler must be specified"
         unless $self->[SCHEDULER];
+
+    $self->[TODO] ||= $self->[CORE]->params->{todo};
+    $self->[SKIP] ||= $self->[CORE]->params->{skip};
 
     $self->[BEFORE] ||= [];
     $self->[AFTER]  ||= [];
@@ -43,12 +46,18 @@ sub multiply {
     unshift @{$clone->[BEFORE]} => [$unit, $unit->[AFFIX]] unless $unit->[AFFIX] > 0;
     unshift @{$clone->[AFTER]}  => $unit                   unless $unit->[AFFIX] < 0;
 
+    $clone->[SKIP] ||= $unit->[SKIP];
+    $clone->[TODO] ||= $unit->[TODO];
+
     return $clone;
 }
 
 sub alter {
     my $self = shift;
     my ($modifier, $affix) = @_;
+
+    $self->[SKIP] ||= $modifier->params->{skip};
+    $self->[TODO] ||= $modifier->params->{todo};
 
     # -1 is before only, 0 is both, 1 is after only
     push @{$self->[BEFORE]} => [$modifier, $affix] unless $affix > 0;
@@ -83,8 +92,13 @@ sub run {
 
         warn "Should handle SKIP here";
         if ($self->is_test) {
-            warn "Should handle TODO here";
-            subtest($self->is_test, $code);
+            my $todo = $self->[TODO];
+
+            Test::Stream::Context->push_todo($todo) if $todo;
+            my ($ok, $err) = try { subtest($self->is_test, $code) };
+            Test::Stream::Context->pop_todo if $todo;
+
+            die $err unless $ok;
         }
         else {
             $code->();
