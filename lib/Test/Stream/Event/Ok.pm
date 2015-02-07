@@ -116,7 +116,9 @@ sub add_diag {
 
         if (ref $item) {
             confess("Only diag objects can be linked to events.")
-                unless blessed($item) && $item->isa('Test::Stream::Event::Diag');
+                unless my $type = blessed($item) &&
+                $type =~ /^Test::Stream::Event::/ &&
+                !$item->isa('Test::Stream::Event::Ok');;
 
             $item->link($self);
         }
