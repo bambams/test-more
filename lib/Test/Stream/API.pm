@@ -161,7 +161,7 @@ Nothing is exported by default, you must request it.
         my ($event, @subevents) = @_;
 
         # Tracking results in a db?
-        my $id = log_event_to_db($e);
+        my $id = log_event_to_db($event);
         log_subevent_to_db($id, $_) for @subevents;
     }
 
